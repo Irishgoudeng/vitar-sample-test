@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import InputField from "@/app/components/common/InputField";
 import Button from "@/app/components/common/Button";
-import { Equipment } from "@/app/types/Equipment"; // Import Equipment type
+import { SpecificEquipment } from "@/app/types/SpecificEquipment"; // Import Equipment type
 import DisabledField from "../common/DisabledField";
 import { db } from "@/app/firebase/config"; // Firestore configuration
 import {
@@ -18,7 +18,7 @@ import Swal from "sweetalert2"; // Optional for success/error alerts
 interface AddSpecificEquipmentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddEquipment: (equipment: Equipment) => void; // Use Equipment type here
+  onAddEquipment: (equipment: SpecificEquipment) => void; // Use Equipment type here
   scopeLabel: string; // New prop to set the scope label
 }
 
@@ -80,7 +80,7 @@ const AddSpecificEquipmentModal: React.FC<AddSpecificEquipmentModalProps> = ({
     e.preventDefault();
 
     // Prepare new equipment object
-    const newEquipment: Equipment = {
+    const newEquipment: SpecificEquipment = {
       equipmentID,
       equipmentName,
       typeOfScope: scopeLabel,
