@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { Site } from "@/app/types/Site"; // Define the Site type
-import AddSiteModal from "@/app/components/Site/AddSiteModal";
+// import AddSiteModal from "@/app/components/Site/AddSiteModal";
 import { db } from "@/app/firebase/config"; // Import your Firebase config
 import { collection, getDocs } from "firebase/firestore";
 
@@ -13,7 +13,7 @@ const SitePage: React.FC = () => {
   const [dropdownOpen, setDropdownOpen] = useState<{ [key: string]: boolean }>(
     {}
   );
-  const [isModalOpen, setIsModalOpen] = useState(false); // State for modal
+  // const [isModalOpen, setIsModalOpen] = useState(false); // State for modal
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(5); // Adjust the number of items per page
@@ -35,7 +35,7 @@ const SitePage: React.FC = () => {
   }, []);
 
   const handleAdd = () => {
-    setIsModalOpen(true);
+    // setIsModalOpen(true);
   };
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -48,9 +48,9 @@ const SitePage: React.FC = () => {
     setCurrentPage(1); // Reset to first page on filter change
   };
 
-  const handleAddSite = (newSite: Site) => {
-    setSites((prev) => [...prev, newSite]); // Add new site to the list
-  };
+  // const handleAddSite = (newSite: Site) => {
+  //   setSites((prev) => [...prev, newSite]); // Add new site to the list
+  // };
 
   const filteredSites = sites.filter((site) => {
     const matchesSearch = site.siteName
@@ -68,22 +68,24 @@ const SitePage: React.FC = () => {
   const currentSites = filteredSites.slice(indexOfFirstSite, indexOfLastSite);
 
   const toggleDropdown = (siteId: string) => {
+    // Ensure this doesn't reference window directly
     setDropdownOpen((prev) => ({
       ...prev,
       [siteId]: !prev[siteId],
     }));
   };
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      for (const id in dropdownRefs.current) {
-        if (
-          dropdownRefs.current[id] &&
-          dropdownOpen[id] &&
-          !dropdownRefs.current[id]?.contains(event.target as Node)
-        ) {
-          setDropdownOpen((prev) => ({ ...prev, [id]: false }));
+      if (typeof window !== "undefined") {
+        for (const id in dropdownRefs.current) {
+          if (
+            dropdownRefs.current[id] &&
+            dropdownOpen[id] &&
+            !dropdownRefs.current[id]?.contains(event.target as Node)
+          ) {
+            setDropdownOpen((prev) => ({ ...prev, [id]: false }));
+          }
         }
       }
     };
@@ -229,11 +231,11 @@ const SitePage: React.FC = () => {
         </div>
       </div>
 
-      <AddSiteModal
+      {/* <AddSiteModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onAddSite={handleAddSite}
-      />
+      /> */}
     </div>
   );
 };
