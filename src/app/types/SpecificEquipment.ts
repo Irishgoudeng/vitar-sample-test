@@ -1,17 +1,24 @@
 export interface SpecificEquipment {
+  id: string;
+  customerID: string;
+  customerName: string;
+  siteID: string;
+  siteName: string;
   equipmentID: string;
   equipmentName: string;
-  description: string; // For "Description"
-  typeOfScope: string; // For "Scope"
-  tagID: string; // For "Tag Id"
-  make: string; // For "Make"
-  model: string; // For "Model"
-  serialNumber: string; // For "Serial Number"
-  certificateNo: string; // For "Certificate No."
-  traceability: string; // For "Traceability"
-  rangeType: string; // For "Range"
+  typeOfScope: string;
+  description: string;
+  tagID: string;
+  make: string;
+  model: string;
+  serialNumber: string;
+  rangeType: string;
+  rangeMin: string;
+  rangeMax: string;
   rangeMinTemp: string;
   rangeMaxTemp: string;
   rangeMinPercent: string;
   rangeMaxPercent: string;
+  certificateNo: string;
+  traceability: string;
 }

@@ -96,6 +96,13 @@ const AddSpecificEquipmentModal: React.FC<AddSpecificEquipmentModalProps> = ({
       rangeMinPercent,
       rangeMaxPercent,
       rangeType,
+      id: "",
+      customerID: "",
+      customerName: "",
+      siteID: "",
+      siteName: "",
+      rangeMin: "",
+      rangeMax: "",
     };
 
     try {
