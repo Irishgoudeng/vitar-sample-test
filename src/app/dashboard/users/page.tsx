@@ -2,13 +2,13 @@
 
 import React, { useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
-import { signOut } from "firebase/auth";
-import { db, auth } from "@/app/firebase/config";
+// import { signOut } from "firebase/auth";
+import { db } from "@/app/firebase/config";
 import AddUser from "@/app/components/Users/AddUserModal";
 import EditUserModal from "@/app/components/Users/EditUserModal";
 import ViewUserModal from "@/app/components/Users/ViewUserModal"; // Import the ViewUserModal
-import { useRouter } from "next/navigation";
-import Swal from "sweetalert2";
+// import { useRouter } from "next/navigation";
+// import Swal from "sweetalert2";
 
 interface User {
   id: string;
@@ -51,7 +51,7 @@ const UsersPage = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false); // State for the ViewUserModal
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const router = useRouter();
+  // const router = useRouter();
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -109,27 +109,27 @@ const UsersPage = () => {
     setSelectedRole(e.target.value);
   };
 
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      Swal.fire({
-        icon: "success",
-        title: "Logged Out",
-        text: "You have been successfully logged out.",
-        confirmButtonColor: "#3085d6",
-        confirmButtonText: "OK",
-      }).then(() => {
-        router.push("/login"); // Redirect to login page
-      });
-    } catch (error) {
-      console.error("Error logging out: ", error);
-      Swal.fire({
-        icon: "error",
-        title: "Error",
-        text: "Failed to log out. Please try again.",
-      });
-    }
-  };
+  // const handleLogout = async () => {
+  //   try {
+  //     await signOut(auth);
+  //     Swal.fire({
+  //       icon: "success",
+  //       title: "Logged Out",
+  //       text: "You have been successfully logged out.",
+  //       confirmButtonColor: "#3085d6",
+  //       confirmButtonText: "OK",
+  //     }).then(() => {
+  //       router.push("/login"); // Redirect to login page
+  //     });
+  //   } catch (error) {
+  //     console.error("Error logging out: ", error);
+  //     Swal.fire({
+  //       icon: "error",
+  //       title: "Error",
+  //       text: "Failed to log out. Please try again.",
+  //     });
+  //   }
+  // };
 
   const filteredUsers = users.filter((user) => {
     const matchesSearch = `${user.firstName} ${user.lastName}`
@@ -147,12 +147,12 @@ const UsersPage = () => {
     <div className="p-6 lg:p-12 bg-white min-h-screen">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-semibold text-gray-900">Users</h1>
-        <button
+        {/* <button
           onClick={handleLogout}
           className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
         >
           Logout
-        </button>
+        </button> */}
       </div>
       {/* Search, Filter, and Add Button */}
       <div className="mb-6 flex flex-col lg:flex-row lg:justify-between lg:items-center">

@@ -81,7 +81,10 @@ const CustomersPage: React.FC = () => {
     return matchesSearch && matchesFilter;
   });
 
-  const totalPages = Math.ceil(filteredCustomers.length / entriesPerPage);
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredCustomers.length / entriesPerPage)
+  );
   const indexOfLastEntry = currentPage * entriesPerPage;
   const indexOfFirstEntry = indexOfLastEntry - entriesPerPage;
   const currentEntries = filteredCustomers.slice(
@@ -122,16 +125,6 @@ const CustomersPage: React.FC = () => {
             placeholder="Search by name..."
             className="px-4 py-2 border border-gray-300 rounded-lg text-black"
           />
-
-          <select
-            value={entriesPerPage}
-            onChange={handleEntriesPerPageChange}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-black"
-          >
-            <option value="5">5 entries per page</option>
-            <option value="10">10 entries per page</option>
-            <option value="20">20 entries per page</option>
-          </select>
         </div>
 
         <Button type="button" label="Add Customer" onClick={handleAdd} />
@@ -210,7 +203,7 @@ const CustomersPage: React.FC = () => {
                       <p>No equipment assigned</p>
                     )}
                   </td>
-                  <td className="items-center justify-start">
+                  <td className="px-6 py-4 text-center">
                     {/* Three-dot menu button */}
                     <button
                       onClick={() =>
@@ -259,24 +252,37 @@ const CustomersPage: React.FC = () => {
           <button
             onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage === 1}
-            className={`px-4 py-2 text-white bg-blue-600 rounded-lg ${
+            className={`px-4 py-2 text-white bg-red-600 rounded-lg ${
               currentPage === 1 ? "opacity-50 cursor-not-allowed" : ""
             }`}
           >
             Previous
           </button>
-          <span className="mx-2">
+          <span className="mx-2 text-black">
             Page {currentPage} of {totalPages}
           </span>
           <button
             onClick={() => handlePageChange(currentPage + 1)}
             disabled={currentPage === totalPages}
-            className={`px-4 py-2 text-white bg-blue-600 rounded-lg ${
+            className={`px-4 py-2 text-white bg-red-600 rounded-lg ${
               currentPage === totalPages ? "opacity-50 cursor-not-allowed" : ""
             }`}
           >
             Next
           </button>
+        </div>
+        <div>
+          <label className="text-gray-600 mr-2">Entries per page:</label>
+          <select
+            value={entriesPerPage}
+            onChange={handleEntriesPerPageChange}
+            className="px-4 py-2 border border-gray-300 rounded-lg text-black"
+          >
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={30}>30</option>
+            <option value={50}>50</option>
+          </select>
         </div>
       </div>
     </div>

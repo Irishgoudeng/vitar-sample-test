@@ -2,8 +2,9 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import InputField from "../common/InputField";
 import Button from "../common/Button";
-import { db } from "@/app/firebase/config"; // Adjust this path
+import { db, auth } from "@/app/firebase/config"; // Adjust this path
 import { doc, setDoc } from "firebase/firestore";
+import { createUserWithEmailAndPassword } from "firebase/auth"; // Import auth function
 import Swal from "sweetalert2";
 import User from "@/app/types/User";
 import TagInput from "../common/TagInput"; // Adjust this import path
@@ -58,10 +59,10 @@ const AddUser: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
   };
 
   const handleSave = async () => {
-    const { workerId, email, primaryPhone, skills } = newUser;
+    const { workerId, email, password, primaryPhone, skills } = newUser;
 
     // Simple validation
-    if (!workerId || !email || !primaryPhone) {
+    if (!workerId || !email || !primaryPhone || !password) {
       alert("Please fill in all required fields.");
       return;
     }
@@ -73,12 +74,22 @@ const AddUser: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
       return;
     }
 
-    // Add new user to Firestore with workerId as document ID
     try {
+      // Create user in Firebase Authentication
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+      const { uid } = userCredential.user;
+
+      // Add new user to Firestore with workerId as document ID
       await setDoc(doc(db, "users", workerId), {
         ...newUser,
-        skills, // Store as an array in Firestore
+        skills, // Store skills as an array in Firestore
+        uid, // Store the Authentication UID for reference
       });
+
       console.log("New user added with ID: ", workerId);
 
       // Show SweetAlert on success

@@ -3,16 +3,20 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Equipment } from "@/app/types/Equipment";
-import AddEquipmentModal from "@/app/components/Equipment/AddEquipmentModal";
 import { db } from "@/app/firebase/config"; // Ensure this is the correct path
 import { collection, getDocs } from "firebase/firestore"; // Import Firestore methods
+import Button from "@/app/components/common/Button"; // Import your Button component
 
 const EquipmentPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [scopeFilter, setScopeFilter] = useState("all"); // New state for scope filter
-  const [isModalOpen, setIsModalOpen] = useState(false); // Modal state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [entriesPerPage, setEntriesPerPage] = useState(10);
+  const [dropdownOpen, setDropdownOpen] = useState<{ [key: string]: boolean }>(
+    {}
+  );
   const router = useRouter();
 
   // Fetch equipment data from Firestore
@@ -39,6 +43,7 @@ const EquipmentPage: React.FC = () => {
         prev.filter((equipment) => equipment.equipmentID !== equipmentId)
       );
       console.log(`Equipment with ID ${equipmentId} deleted`);
+      // Optionally, trigger a refresh or navigate away
       router.push(`/dashboard/equipment`);
     }
   };
@@ -55,26 +60,44 @@ const EquipmentPage: React.FC = () => {
     setScopeFilter(e.target.value); // Update scope filter
   };
 
-  const handleAddEquipment = (newEquipment: Equipment) => {
-    setEquipments((prev) => [...prev, newEquipment]); // Add new equipment to the list
-  };
-
   const filteredEquipments = equipments.filter((equipment) => {
     const matchesSearch =
       equipment.equipmentName
         ?.toLowerCase()
-        .includes(searchTerm.toLowerCase()) ?? false; // Use optional chaining and fallback
+        .includes(searchTerm.toLowerCase()) ?? false;
     const matchesFilter =
       (selectedFilter === "all" ||
         equipment.siteName
           ?.toLowerCase()
           .includes(selectedFilter.toLowerCase())) ??
-      false; // Use optional chaining and fallback
+      false;
     const matchesScopeFilter =
       scopeFilter === "all" || equipment.typeOfScope === scopeFilter; // Filter by type of scope
-
     return matchesSearch && matchesFilter && matchesScopeFilter;
   });
+
+  // Pagination setup
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredEquipments.length / entriesPerPage)
+  );
+  const indexOfLastEntry = currentPage * entriesPerPage;
+  const indexOfFirstEntry = indexOfLastEntry - entriesPerPage;
+  const currentEntries = filteredEquipments.slice(
+    indexOfFirstEntry,
+    indexOfLastEntry
+  );
+
+  const handlePageChange = (pageNumber: number) => {
+    setCurrentPage(pageNumber);
+  };
+
+  const handleEntriesPerPageChange = (
+    e: React.ChangeEvent<HTMLSelectElement>
+  ) => {
+    setEntriesPerPage(parseInt(e.target.value, 10));
+    setCurrentPage(1); // Reset to the first page
+  };
 
   return (
     <div className="p-8 lg:p-12 bg-white h-screen overflow-x-hidden">
@@ -100,7 +123,6 @@ const EquipmentPage: React.FC = () => {
             <option value="Site B">Site B</option>
             <option value="Site C">Site C</option>
           </select>
-          {/* Dropdown for Type of Scope filter */}
           <select
             value={scopeFilter}
             onChange={handleScopeFilterChange}
@@ -113,206 +135,141 @@ const EquipmentPage: React.FC = () => {
             {/* Add more types of scope as needed */}
           </select>
         </div>
-        {/* <button
-          onClick={handleAdd}
-          className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-        >
-          Add Equipment
-        </button> */}
+        <Button
+          type="button"
+          label="Add Equipment"
+          onClick={() => router.push("./equipment/add")}
+        />
       </div>
-      {/* Equipment List as Cards for smaller screens */}
-      <div className="block lg:hidden text-black">
-        {filteredEquipments.length > 0 ? (
-          filteredEquipments.map((equipment) => (
-            <div
-              key={equipment.equipmentID}
-              className="border rounded-lg p-4 mb-4 bg-white shadow"
-            >
-              <h2 className="text-xl font-semibold">
-                {equipment.equipmentName}
-              </h2>
-              <p className="text-gray-600">
-                Type of Scope: {equipment.typeOfScope}
-              </p>
-              <p className="text-gray-600">Model: {equipment.model}</p>
-              <p className="text-gray-600">
-                Serial Number: {equipment.serialNumber}
-              </p>
-              <div className="mt-2">
-                <button
-                  onClick={() => handleDelete(equipment.equipmentID)}
-                  className="w-full px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+
+      {/* Table with sticky header and fixed height */}
+      <div className="relative overflow-x-auto bg-white border border-gray-200 rounded-lg shadow-md h-[500px]">
+        <table className="w-full text-sm text-left text-gray-600 bg-white">
+          <thead className="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0">
+            <tr>
+              <th scope="col" className="px-6 py-3">
+                Equipment ID
+              </th>
+              <th scope="col" className="px-6 py-3">
+                Equipment Name
+              </th>
+              <th scope="col" className="px-6 py-3">
+                Type of Scope
+              </th>
+              <th scope="col" className="px-6 py-3">
+                Tag ID
+              </th>
+              <th scope="col" className="px-6 py-3">
+                Make
+              </th>
+              <th scope="col" className="px-6 py-3">
+                Model
+              </th>
+              <th scope="col" className="px-6 py-3">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody className="overflow-y-auto">
+            {currentEntries.length > 0 ? (
+              currentEntries.map((equipment) => (
+                <tr
+                  key={equipment.equipmentID}
+                  className="border-b border-gray-200"
                 >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="text-center text-gray-500">No equipment found</div>
-        )}
-      </div>
-      {/* Table for larger screens */}
-      <div className="hidden lg:block">
-        {/* Container for fixed height and overflow scrolling */}
-        <div className="overflow-y-auto" style={{ maxHeight: "700px" }}>
-          <table className="w-full text-sm text-left text-gray-600 bg-white border border-gray-200 rounded-lg shadow-md">
-            <thead className="text-xs text-gray-700 uppercase bg-gray-100">
-              <tr>
-                <th
-                  scope="col"
-                  className="px-6 py-3 sticky top-0 bg-gray-100 z-10"
-                >
-                  Equipment ID
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 sticky top-0 bg-gray-100 z-10"
-                >
-                  Equipment Name
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 sticky top-0 bg-gray-100 z-10"
-                >
-                  Type of Scope
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 sticky top-0 bg-gray-100 z-10"
-                >
-                  Tag ID
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 sticky top-0 bg-gray-100 z-10"
-                >
-                  Make
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 sticky top-0 bg-gray-100 z-10"
-                >
-                  Model
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 sticky top-0 bg-gray-100 z-10"
-                >
-                  Serial Number
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 sticky top-0 bg-gray-100 z-10"
-                >
-                  Range Type
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 sticky top-0 bg-gray-100 z-10"
-                >
-                  Range (Min)
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 sticky top-0 bg-gray-100 z-10"
-                >
-                  Range (Max)
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 sticky top-0 py-3 bg-gray-100 z-10"
-                >
-                  Range Temp(Min)
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 sticky top-0 py-3 bg-gray-100 z-10"
-                >
-                  Range Temp (Max)
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 sticky top-0 py-3 bg-gray-100 z-10"
-                >
-                  Range Perc (Min)
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 sticky top-0 py-3 bg-gray-100 z-10"
-                >
-                  Range Perc(Max)
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 sticky top-0 bg-gray-100 z-10"
-                >
-                  Certificate No.
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 sticky top-0 bg-gray-100 z-10"
-                >
-                  Traceability
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 sticky top-0 bg-gray-100 z-10"
-                >
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredEquipments.length > 0 ? (
-                filteredEquipments.map((equipment) => (
-                  <tr
-                    key={equipment.equipmentID}
-                    className="border-b border-gray-200"
-                  >
-                    <td className="px-6 py-4">{equipment.equipmentID}</td>
-                    <td className="px-6 py-4">{equipment.equipmentName}</td>
-                    <td className="px-6 py-4">{equipment.typeOfScope}</td>
-                    <td className="px-6 py-4">{equipment.tagID}</td>
-                    <td className="px-6 py-4">{equipment.make}</td>
-                    <td className="px-6 py-4">{equipment.model}</td>
-                    <td className="px-6 py-4">{equipment.serialNumber}</td>
-                    <td className="px-6 py-4">{equipment.rangeType}</td>
-                    <td className="px-6 py-4">{equipment.rangeMin}</td>
-                    <td className="px-6 py-4">{equipment.rangeMax}</td>
-                    <td className="px-6 py-4">{equipment.rangeMinTemp}</td>
-                    <td className="px-6 py-4">{equipment.rangeMaxTemp}</td>
-                    <td className="px-6 py-4">{equipment.rangeMinPercent}</td>
-                    <td className="px-6 py-4">{equipment.rangeMinPercent}</td>
-                    <td className="px-6 py-4">{equipment.certificateNo}</td>
-                    <td className="px-6 py-4">{equipment.traceability}</td>
-                    <td className="px-6 py-4">
-                      <button
-                        onClick={() => handleDelete(equipment.equipmentID)}
-                        className="text-red-600 hover"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={13} className="text-center py-4 text-gray-500">
-                    No equipment found
+                  <td className="px-6 py-4 font-medium text-gray-900">
+                    {equipment.equipmentID}
+                  </td>
+                  <td className="px-6 py-4 font-medium text-gray-900">
+                    {equipment.equipmentName}
+                  </td>
+                  <td className="px-6 py-4 text-gray-600">
+                    {equipment.typeOfScope}
+                  </td>
+                  <td className="px-6 py-4 text-gray-600">{equipment.tagID}</td>
+                  <td className="px-6 py-4 text-gray-600">{equipment.make}</td>
+                  <td className="px-6 py-4 text-gray-600">{equipment.model}</td>
+                  <td className="px-6 py-4 text-center">
+                    <button
+                      onClick={() =>
+                        setDropdownOpen((prev) => ({
+                          ...prev,
+                          [equipment.equipmentID]: !prev[equipment.equipmentID],
+                        }))
+                      }
+                      className="text-gray-600 hover:text-gray-800 focus:outline-none"
+                    >
+                      ⋮
+                    </button>
+                    {/* Dropdown Menu */}
+                    {dropdownOpen[equipment.equipmentID] && (
+                      <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded shadow-lg z-2">
+                        <button
+                          onClick={() => {
+                            handleDelete(equipment.equipmentID);
+                            setDropdownOpen((prev) => ({
+                              ...prev,
+                              [equipment.equipmentID]: false,
+                            }));
+                          }}
+                          className="block px-4 py-2 text-red-600 hover:bg-gray-100 w-full text-left"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={7} className="text-center text-gray-500 py-4">
+                  No equipment found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="flex justify-between items-center mt-4">
+        <div>
+          <button
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className={`px-4 py-2 text-white bg-red-600 rounded-lg ${
+              currentPage === 1 ? "opacity-50 cursor-not-allowed" : ""
+            }`}
+          >
+            Previous
+          </button>
+          <span className="mx-2 text-gray-600">
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages || totalPages < 1}
+            className={`px-4 py-2 text-white bg-red-600 rounded-lg ${
+              currentPage === totalPages || totalPages < 1
+                ? "opacity-50 cursor-not-allowed"
+                : ""
+            }`}
+          >
+            Next
+          </button>
+        </div>
+        <div>
+          <select
+            value={entriesPerPage}
+            onChange={handleEntriesPerPageChange}
+            className="px-4 py-2 border border-gray-300 rounded-lg text-black"
+          >
+            <option value="5">5 entries per page</option>
+            <option value="10">10 entries per page</option>
+            <option value="20">20 entries per page</option>
+          </select>
         </div>
       </div>
-      {/* Modal for adding new equipment */}
-      <AddEquipmentModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onAddEquipment={handleAddEquipment}
-      />
     </div>
   );
 };

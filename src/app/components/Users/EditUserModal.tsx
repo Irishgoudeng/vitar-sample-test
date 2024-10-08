@@ -5,12 +5,21 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import InputField from "../common/InputField";
 import Button from "../common/Button";
-import { db } from "@/app/firebase/config"; // Adjust this path
+import { db, auth } from "@/app/firebase/config"; // Adjust this path
 import { doc, updateDoc } from "firebase/firestore";
 import DisabledField from "../common/DisabledField";
 import TagInput from "../common/TagInput";
+import {
+  getAuth,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updateEmail,
+  updatePassword,
+  sendEmailVerification,
+} from "firebase/auth";
 
 import Swal from "sweetalert2";
+import { FirebaseError } from "firebase/app";
 
 interface User {
   id: string;
@@ -59,6 +68,8 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   onSave,
 }) => {
   const [formData, setFormData] = useState<User | null>(null);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const router = useRouter();
 
   useEffect(() => {
@@ -90,50 +101,135 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     );
   };
 
+  const handleEmailChange = async (newEmail: string) => {
+    const user = auth.currentUser; // Get the current user
+
+    if (user) {
+      try {
+        // Send verification email
+        await sendEmailVerification(user);
+        console.log(`Verification email sent to ${newEmail}.`);
+
+        // Optionally, show a message to the user
+        Swal.fire({
+          title: "Verification Email Sent!",
+          text: `Please verify your new email address: ${newEmail}.`,
+          icon: "info",
+          confirmButtonText: "OK",
+        });
+      } catch (error) {
+        console.error("Error sending verification email:", error);
+
+        // Use type assertion to specify the error type
+        const errorMessage =
+          (error as Error).message || "An error occurred. Please try again.";
+
+        Swal.fire({
+          title: "Error!",
+          text: errorMessage,
+          icon: "error",
+          confirmButtonText: "OK",
+        });
+      }
+    } else {
+      console.error("No user is logged in.");
+      Swal.fire({
+        title: "Error!",
+        text: "No user is logged in.",
+        icon: "error",
+        confirmButtonText: "OK",
+      });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     if (formData) {
-      const { email, primaryPhone } = formData;
-      if (!email || !primaryPhone) {
-        alert("Please fill in all required fields.");
+      const { email } = formData;
+
+      if (!currentPassword) {
+        Swal.fire("Error!", "Please enter your current password.", "error");
         return;
       }
 
-      // Use SweetAlert2 for confirmation
-      const result = await Swal.fire({
-        title: "Are you sure?",
-        text: "Do you want to save the changes?",
-        icon: "warning",
-        showCancelButton: true,
-        confirmButtonColor: "#3085d6",
-        cancelButtonColor: "#d33",
-        confirmButtonText: "Yes, save it!",
-      });
+      const user = auth.currentUser;
 
-      if (result.isConfirmed) {
-        try {
-          const userRef = doc(db, "users", formData.workerId);
-          await updateDoc(userRef, { ...formData });
-          onSave(formData);
-          router.push("/dashboard/users");
-          // router.push("/users");
-          Swal.fire("Saved!", "Your changes have been saved.", "success"); // Optional success message
-        } catch (error) {
-          console.error("Error updating user: ", error);
+      if (!user) {
+        Swal.fire("Error!", "User not authenticated.", "error");
+        return;
+      }
+
+      const credential = EmailAuthProvider.credential(
+        user.email!,
+        currentPassword
+      );
+
+      try {
+        // Reauthenticate the user
+        await reauthenticateWithCredential(user, credential);
+
+        // Update email if it's different from the current one
+        if (email && email !== user.email) {
+          await updateEmail(user, email);
+          // Send email verification
+          await sendEmailVerification(user);
           Swal.fire(
-            "Error!",
-            "There was a problem saving your changes.",
-            "error"
-          ); // Optional error message
+            "Success!",
+            "A verification email has been sent. Please verify your new email.",
+            "success"
+          );
+        }
+
+        // Update password if a new password is provided
+        if (newPassword) {
+          await updatePassword(user, newPassword);
+          Swal.fire("Success!", "Password has been updated.", "success");
+        }
+
+        // Update Firestore user document
+        const userRef = doc(db, "users", formData.workerId);
+        await updateDoc(userRef, { ...formData });
+
+        onSave(formData);
+        router.push("/dashboard/users");
+        Swal.fire("Saved!", "Your changes have been saved.", "success");
+      } catch (error) {
+        console.error("Error updating user: ", error);
+
+        const firebaseError = error as FirebaseError;
+
+        if (firebaseError.code) {
+          switch (firebaseError.code) {
+            case "auth/wrong-password":
+              Swal.fire("Error!", "Incorrect current password.", "error");
+              break;
+            case "auth/user-not-found":
+              Swal.fire("Error!", "No user found with this email.", "error");
+              break;
+            case "auth/operation-not-allowed":
+              Swal.fire(
+                "Error!",
+                "Operation not allowed. Please verify your new email.",
+                "error"
+              );
+              break;
+            default:
+              Swal.fire(
+                "Error!",
+                "There was a problem saving your changes: " +
+                  firebaseError.message,
+                "error"
+              );
+          }
+        } else {
+          Swal.fire("Error!", "An unknown error occurred.", "error");
         }
       }
     }
 
     onClose();
   };
-
-  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
@@ -208,13 +304,23 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
             required
           />
           <InputField
-            id="user-password"
-            name="password"
-            label="Password"
+            id="currentPassword"
+            name="currentPassword"
+            label="Current Password"
             type="password"
-            value={formData?.password || ""}
-            onChange={handleChange}
-            placeholder="Enter Password (optional)"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            placeholder="Enter current password"
+            required
+          />
+          <InputField
+            id="newPassword"
+            name="newPassword"
+            label="New Password"
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="Enter new password (optional)"
           />
           <div>
             <label htmlFor="user-gender" className="block text-gray-700">

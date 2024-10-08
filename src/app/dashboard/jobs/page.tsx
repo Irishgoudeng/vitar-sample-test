@@ -1,75 +1,52 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
+import { collection, getDocs } from "firebase/firestore";
+// query, where,
+import { db } from "@/app/firebase/config";
+import Button from "@/app/components/common/Button";
 import { useRouter } from "next/navigation";
 
-const initialJobs = [
-  {
-    id: "1",
-    technician: "Tech A",
-    customer: "John Doe",
-    equipment: ["Thermocouple", "Heat Gun"],
-    dateTime: "2023-09-23 10:00 AM",
-    status: "Confirmed",
-    type: "Site",
-    priority: true,
-  },
-  {
-    id: "2",
-    technician: "Tech B",
-    customer: "Jane Smith",
-    equipment: ["Infrared Thermometer", "Thermal Camera"],
-    dateTime: "2023-09-23 01:00 PM",
-    status: "Pending",
-    type: "Sub-Contract",
-    priority: false,
-  },
-  {
-    id: "3",
-    technician: "Tech C",
-    customer: "Emily Johnson",
-    equipment: ["Heat Exchanger", "Thermal Insulation"],
-    dateTime: "2023-09-24 09:30 AM",
-    status: "Confirmed",
-    type: "Lab",
-    priority: true,
-  },
-  {
-    id: "4",
-    technician: "Tech D",
-    customer: "Michael Brown",
-    equipment: ["Boiler", "Heating Element"],
-    dateTime: "2023-09-25 11:00 AM",
-    status: "Confirmed",
-    type: "Site",
-    priority: false,
-  },
-];
-
-const jobTypes = ["All", "Site", "Sub-Contract", "Lab"];
+type Job = {
+  id: string;
+  technician: string;
+  customer: string;
+  equipment: string[];
+  dateTime: string;
+  status: string;
+  type: string;
+  priority: boolean;
+};
 
 const JobsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState("All");
   const [showPriority, setShowPriority] = useState(false);
-  const [jobs, setJobs] = useState(initialJobs);
+  const [jobs, setJobs] = useState<Job[]>([]);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [entriesPerPage, setEntriesPerPage] = useState(10);
+
+  const [dropdownOpen, setDropdownOpen] = useState<{ [key: string]: boolean }>(
+    {}
+  );
   const router = useRouter();
 
+  // Fetch job data from Firestore
+  const fetchJobs = async () => {
+    const jobsCollection = collection(db, "jobs");
+    const jobsSnapshot = await getDocs(jobsCollection);
+
+    const fetchedJobs: Job[] = jobsSnapshot.docs.map((doc) => {
+      const jobData = doc.data() as Job;
+      return { ...jobData, id: doc.id };
+    });
+    setJobs(fetchedJobs);
+  };
+
   useEffect(() => {
-    setJobs(initialJobs); // Set jobs after the first render
+    fetchJobs();
   }, []);
-
-  const handleEdit = (jobId: string) => {
-    router.push(`/dashboard/jobs/${jobId}/edit`);
-  };
-
-  const handleAdd = () => {
-    router.push(`/dashboard/jobs/add`);
-  };
-
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
-  };
 
   const filteredJobs = jobs.filter((job) => {
     const matchesSearchTerm = job.customer
@@ -77,31 +54,58 @@ const JobsPage: React.FC = () => {
       .includes(searchTerm.toLowerCase());
     const matchesType = selectedType === "All" || job.type === selectedType;
     const matchesPriority = showPriority ? job.priority : true;
-
     return matchesSearchTerm && matchesType && matchesPriority;
   });
 
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredJobs.length / entriesPerPage)
+  );
+  const indexOfLastEntry = currentPage * entriesPerPage;
+  const indexOfFirstEntry = indexOfLastEntry - entriesPerPage;
+  const currentEntries = filteredJobs.slice(
+    indexOfFirstEntry,
+    indexOfLastEntry
+  );
+
+  const handlePageChange = (pageNumber: number) => {
+    setCurrentPage(pageNumber);
+  };
+
+  const handleEntriesPerPageChange = (
+    e: React.ChangeEvent<HTMLSelectElement>
+  ) => {
+    setEntriesPerPage(parseInt(e.target.value, 10));
+    setCurrentPage(1); // Reset to the first page
+  };
+
+  const handleAdd = () => {
+    router.push("/dashboard/jobs/add");
+  };
+
+  const handleEdit = (jobId: string) => {
+    router.push(`/dashboard/jobs/${jobId}/edit`);
+  };
+
   return (
-    <div className="p-4 md:p-6 lg:p-12 bg-white min-h-screen">
-      <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 mb-4 py-4 ">
+    <div className="p-8 lg:p-12 bg-white h-screen overflow-x-hidden">
+      <h1 className="text-3xl font-semibold text-gray-900 mb-4 py-8 lg:mb-0">
         Jobs
       </h1>
 
       {/* Search and Add Job Button */}
-      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:justify-between lg:items-center">
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={handleSearch}
-          placeholder="Search by customer name..."
-          className="px-4 py-2 border border-gray-300 rounded-lg text-black"
-        />
-        <button
-          onClick={handleAdd}
-          className="px-4 py-2 w-full lg:w-auto bg-red-500 text-white rounded hover:bg-red-600"
-        >
-          Add Job
-        </button>
+      <div className="mb-6 flex flex-col lg:flex-row lg:justify-between lg:items-center">
+        <div className="flex gap-4 mb-4 lg:mb-0">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search by customer name..."
+            className="px-4 py-2 border border-gray-300 rounded-lg text-black"
+          />
+        </div>
+
+        <Button type="button" label="Add Job" onClick={handleAdd} />
       </div>
 
       {/* Filters */}
@@ -111,7 +115,7 @@ const JobsPage: React.FC = () => {
           onChange={(e) => setSelectedType(e.target.value)}
           className="px-4 py-2 border border-gray-300 rounded-lg text-black mb-4 lg:mb-0"
         >
-          {jobTypes.map((type) => (
+          {["All", "Site", "Sub-Contract", "Lab"].map((type) => (
             <option key={type} value={type}>
               {type}
             </option>
@@ -128,42 +132,10 @@ const JobsPage: React.FC = () => {
         </label>
       </div>
 
-      {/* Job List for small screens */}
-      <div className="block lg:hidden">
-        {filteredJobs.length > 0 ? (
-          filteredJobs.map((job) => (
-            <div
-              key={job.id}
-              className="border rounded-lg p-4 mb-4 bg-white shadow-sm"
-            >
-              <h2 className="text-lg font-semibold">{job.customer}</h2>
-              <p className="text-gray-600">Technician: {job.technician}</p>
-              <p className="text-gray-600">
-                Equipment: {job.equipment.join(", ")}
-              </p>
-              <p className="text-gray-600">Date & Time: {job.dateTime}</p>
-              <p className="text-gray-600">Status: {job.status}</p>
-              <p className="text-gray-600">Type: {job.type}</p>
-              <p className="text-gray-600">
-                Priority: {job.priority ? "Yes" : "No"}
-              </p>
-              <button
-                onClick={() => handleEdit(job.id)}
-                className="mt-2 w-full px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-              >
-                Edit
-              </button>
-            </div>
-          ))
-        ) : (
-          <div className="text-center text-gray-500">No jobs found</div>
-        )}
-      </div>
-
-      {/* Job Table for larger screens */}
-      <div className="hidden lg:block overflow-x-auto h-screen">
-        <table className="w-full text-sm text-left text-gray-600 bg-white border border-gray-200 rounded-lg shadow-sm">
-          <thead className="text-xs text-gray-700 uppercase bg-gray-100">
+      {/* Job Table */}
+      <div className="relative overflow-x-auto bg-white border border-gray-200 rounded-lg shadow-md h-[500px]">
+        <table className="w-full text-sm text-left text-gray-600 bg-white">
+          <thead className="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0">
             <tr>
               <th className="px-6 py-3">Job ID</th>
               <th className="px-6 py-3">Technician</th>
@@ -176,9 +148,9 @@ const JobsPage: React.FC = () => {
               <th className="px-6 py-3">Actions</th>
             </tr>
           </thead>
-          <tbody>
-            {filteredJobs.length > 0 ? (
-              filteredJobs.map((job) => (
+          <tbody className="overflow-y-auto">
+            {currentEntries.length > 0 ? (
+              currentEntries.map((job) => (
                 <tr key={job.id} className="border-b border-gray-200">
                   <td className="px-6 py-4 font-medium text-gray-900">
                     {job.id}
@@ -190,40 +162,43 @@ const JobsPage: React.FC = () => {
                   <td className="px-6 py-4">{job.status}</td>
                   <td className="px-6 py-4">{job.type}</td>
                   <td className="px-6 py-4">{job.priority ? "High" : "Low"}</td>
-                  <td className="px-6 py-4 relative">
+                  <td className="px-6 py-4 text-center">
+                    {/* Three-dot menu button */}
                     <button
-                      className="text-gray-500 hover:underline"
-                      onClick={(e) => {
-                        const dropdown = e.currentTarget.nextElementSibling;
-                        if (dropdown) {
-                          dropdown.classList.toggle("hidden");
-                        }
-                      }}
+                      onClick={() =>
+                        setDropdownOpen((prev) => ({
+                          ...prev,
+                          [job.id]: !prev[job.id],
+                        }))
+                      }
+                      className="text-gray-600 hover:text-gray-800 focus:outline-none"
                     >
-                      &#x2022;&#x2022;&#x2022; {/* Three dots */}
+                      ⋮
                     </button>
-                    <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded shadow-lg hidden z-10">
-                      <button
-                        onClick={() => handleEdit(job.id)}
-                        className="block px-4 py-2 text-gray-700 hover:bg-gray-100 w-full text-left"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() =>
-                          router.push(`/dashboard/jobs/${job.id}/view`)
-                        }
-                        className="block px-4 py-2 text-gray-700 hover:bg-gray-100 w-full text-left"
-                      >
-                        View Details
-                      </button>
-                      <button
-                        onClick={() => router.push(`/dashboard/jobs`)}
-                        className="block px-4 py-2 text-gray-700 hover:bg-gray-100 w-full text-left"
-                      >
-                        Cancel Job
-                      </button>
-                    </div>
+                    {dropdownOpen[job.id] && (
+                      <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded shadow-lg">
+                        <button
+                          onClick={() => handleEdit(job.id)}
+                          className="block px-4 py-2 text-gray-700 hover:bg-gray-100 w-full text-left"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() =>
+                            router.push(`/dashboard/jobs/${job.id}/view`)
+                          }
+                          className="block px-4 py-2 text-gray-700 hover:bg-gray-100 w-full text-left"
+                        >
+                          View Details
+                        </button>
+                        <button
+                          onClick={() => console.log("Cancel Job", job.id)}
+                          className="block px-4 py-2 text-gray-700 hover:bg-gray-100 w-full text-left"
+                        >
+                          Cancel Job
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))
@@ -236,6 +211,46 @@ const JobsPage: React.FC = () => {
             )}
           </tbody>
         </table>
+      </div>
+      <div className="flex justify-between items-center mt-4">
+        <div>
+          <button
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className={`px-4 py-2 text-white bg-red-600 rounded-lg ${
+              currentPage === 1 ? "opacity-50 cursor-not-allowed" : ""
+            }`}
+          >
+            Previous
+          </button>
+          <span className="mx-2 text-black">
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages || totalPages < 1}
+            className={`px-4 py-2 text-white bg-red-600 rounded-lg ${
+              currentPage === totalPages || totalPages < 1
+                ? "opacity-50 cursor-not-allowed"
+                : ""
+            }`}
+          >
+            Next
+          </button>
+        </div>
+        <div>
+          <label className="text-gray-600 mr-2">Entries per page:</label>
+          <select
+            value={entriesPerPage}
+            onChange={handleEntriesPerPageChange}
+            className="px-4 py-2 border border-gray-300 rounded-lg text-black"
+          >
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={30}>30</option>
+            <option value={50}>50</option>
+          </select>
+        </div>
       </div>
     </div>
   );

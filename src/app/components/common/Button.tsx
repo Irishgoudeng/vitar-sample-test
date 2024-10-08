@@ -3,7 +3,7 @@ import React from "react";
 interface ButtonProps {
   label: string;
   type: string;
-  onClick?: () => void; // Optional onClick handler
+  onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void; // Optional onClick handler
 }
 
 const Button: React.FC<ButtonProps> = ({ label, onClick }) => {

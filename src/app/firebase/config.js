@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, browserLocalPersistence } from "firebase/auth"; // Import browserLocalPersistence
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -17,5 +17,14 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 const auth = getAuth(app);
+
+auth
+  .setPersistence(browserLocalPersistence)
+  .then(() => {
+    // Persistence is set successfully
+  })
+  .catch((error) => {
+    console.error("Error setting persistence:", error);
+  });
 
 export { app, auth, db };

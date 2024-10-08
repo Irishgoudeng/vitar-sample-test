@@ -7,23 +7,46 @@ import Image from "next/image";
 import { useSignInWithEmailAndPassword } from "react-firebase-hooks/auth";
 import Swal from "sweetalert2"; // Import SweetAlert
 
-import { auth } from "@/app/firebase/config"; // Make sure the path is correct
+import { auth, db } from "@/app/firebase/config"; // Make sure the path is correct
 import { useRouter } from "next/navigation";
+import { collection, query, where, getDocs } from "firebase/firestore"; // Firestore imports
 
 export default function Login() {
-  const [email, setEmail] = useState("");
+  const [loginInput, setLoginInput] = useState(""); // Input for email or workerID
   const [password, setPassword] = useState("");
   const [signInWithEmailAndPassword, user, loading, error] =
     useSignInWithEmailAndPassword(auth);
 
   const router = useRouter();
 
+  // Function to determine if the input is an email
+  const isEmail = (input: string) => /\S+@\S+\.\S+/.test(input);
+
   // Handle form submission
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault(); // Prevent the default form submission
 
     try {
-      // Try signing in first
+      let email = loginInput;
+
+      // If the input is not an email, treat it as a workerID and look up the email in Firestore
+      if (!isEmail(loginInput)) {
+        const usersRef = collection(db, "users");
+        const q = query(usersRef, where("workerId", "==", loginInput)); // Check workerID in Firestore
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+          // If no user is found with the given workerID
+          throw new Error("No user found with the provided Worker ID.");
+        }
+
+        // Assuming each workerID is unique, grab the first document found
+        querySnapshot.forEach((doc) => {
+          email = doc.data().email; // Use the email found in Firestore
+        });
+      }
+
+      // Try signing in with the email (either entered or retrieved from Firestore)
       const userCredential = await signInWithEmailAndPassword(email, password);
 
       // Store user session or redirect after successful login
@@ -44,11 +67,21 @@ export default function Login() {
       }
     } catch (err) {
       console.error(err);
+
+      // Set a generic error message
       let errorMessage = "An error occurred. Please try again.";
 
-      // Check if the error is a FirebaseError
+      // Check if the error is a FirebaseError or general Error
       if (err instanceof Error) {
-        errorMessage = err.message; // Get the error message from the caught error
+        // Check for specific Firebase errors and customize the message
+        if (err.message.includes("auth/invalid-credential")) {
+          errorMessage =
+            "Invalid credentials. Please check your email or password.";
+        } else if (err.message.includes("auth/user-not-found")) {
+          errorMessage = "No user found with this email or Worker ID.";
+        } else if (err.message.includes("auth/wrong-password")) {
+          errorMessage = "Incorrect password. Please try again.";
+        }
       }
 
       // Handle error (e.g., show a message to the user)
@@ -96,17 +129,17 @@ export default function Login() {
             <div className="mb-4">
               <label
                 className="block text-gray-700 text-sm font-bold mb-2"
-                htmlFor="email"
+                htmlFor="loginInput"
               >
-                Email Address
+                Email Address or Worker ID
               </label>
               <input
-                type="email"
-                id="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                id="loginInput"
+                value={loginInput}
+                onChange={(e) => setLoginInput(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring focus:border-red-500"
-                placeholder="Enter your email"
+                placeholder="Enter your email or Worker ID"
                 required // Add required attribute
               />
             </div>
