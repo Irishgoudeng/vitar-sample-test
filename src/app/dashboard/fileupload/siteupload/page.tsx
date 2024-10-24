@@ -35,13 +35,13 @@ const SiteUpload: React.FC = () => {
       return {
         siteID: `S-${String(index + 1).padStart(3, "0")}`,
         siteName: item["Site Name"] || "", // Map Description to Equipment Name\
-        street1: item["Street1"] || "",
-        street2: item["Street2"] || "",
-        street3: item["Street3"] || "",
-        postCode: item["Postcode"] || "",
-        city: item["City"] || "",
-        state: item["State"] || "",
-        country: item["Country"] || "",
+        siteStreet1: item["Street1"] || "",
+        siteStreet2: item["Street2"] || "",
+        siteStreet3: item["Street3"] || "",
+        sitePostCode: item["Postcode"] || "",
+        siteCity: item["City"] || "",
+        siteState: item["State"] || "",
+        siteCountry: item["Country"] || "",
       };
     });
 

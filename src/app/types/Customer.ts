@@ -11,18 +11,17 @@ export interface CustomerEquipment {
   traceability: string;
 }
 export interface CustomerSite {
-  id: string;
   customerID: string;
   customerName: string;
   siteID: string;
   siteName: string;
-  siteStreet1: string;
-  siteStreet2: string;
-  siteStreet3: string;
-  siteState: string;
-  siteCity: string;
-  sitePostCode: string;
-  siteCountry: string;
+  street1: string;
+  street2: string;
+  street3: string;
+  state: string;
+  city: string;
+  postCode: string;
+  country: string;
 }
 
 export interface Customer {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, getDocs, onSnapshot } from "firebase/firestore";
 import { db } from "@/app/firebase/config";
 import {
   Customer,
@@ -10,6 +10,8 @@ import {
 } from "@/app/types/Customer"; // Updated imports
 import Button from "@/app/components/common/Button";
 import { useRouter } from "next/navigation";
+import AddCustomerSiteModal from "@/app/components/Customers/AddCustomerSiteModal";
+import Swal from "sweetalert2";
 
 const CustomersPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -21,51 +23,104 @@ const CustomersPage: React.FC = () => {
     {}
   );
 
-  // Fetch customer data from Firestore
-  const fetchCustomers = async () => {
+  const [selectedCustomerID, setSelectedCustomerID] = useState<string | null>(
+    null
+  );
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleAddSiteClick = (customerID: string) => {
+    setSelectedCustomerID(customerID);
+    setIsModalOpen(true);
+  };
+
+  const fetchCustomers = () => {
     const customerCollection = collection(db, "customerInfo");
-    const customerQuerySnapshot = await getDocs(customerCollection);
 
-    const fetchedCustomers: Customer[] = await Promise.all(
-      customerQuerySnapshot.docs.map(async (doc) => {
-        const customerData = doc.data() as Customer;
+    // Set up the real-time listener for the customer collection
+    const unsubscribe = onSnapshot(
+      customerCollection,
+      async (customerQuerySnapshot) => {
+        try {
+          // Fetch all customers
+          const fetchedCustomers: Customer[] = await Promise.all(
+            customerQuerySnapshot.docs.map(async (doc) => {
+              const customerData = doc.data();
+              const customerID = customerData.customerID || ""; // Extract customerID
 
-        // Fetch equipment for each customer
-        const equipmentCollection = collection(db, "customerEquipmentInfo");
-        const equipmentQuery = query(
-          equipmentCollection,
-          where("customerID", "==", customerData.customerID)
-        );
-        const equipmentQuerySnapshot = await getDocs(equipmentQuery);
+              return {
+                customerID: customerID, // Use the extracted customerID
+                customerName: customerData.customerName || "",
+                email: customerData.contact?.[0]?.contactEmail || "",
+                phone: customerData.contact?.[0]?.contactPhone || "",
+                address: customerData.address || "",
+                BRN: customerData.BRN || "",
+                TIN: customerData.TIN || "",
+                industry: customerData.industry || "",
+                status: customerData.status || "",
+                contactFirstName:
+                  customerData.contact?.[0]?.contactFirstName || "",
+                contactLastName:
+                  customerData.contact?.[0]?.contactLastName || "",
+                contactPhone: customerData.contact?.[0]?.contactPhone || "",
+                contactEmail: customerData.contact?.[0]?.contactEmail || "",
+                equipment: [], // Placeholder for equipment
+                sites: [], // Placeholder for sites
+              };
+            })
+          );
 
-        const equipment: CustomerEquipment[] = equipmentQuerySnapshot.docs.map(
-          (equipDoc) => equipDoc.data() as CustomerEquipment
-        );
+          // Fetch equipment and sites for all customers in parallel
+          const equipmentPromises = fetchedCustomers.map(async (customer) => {
+            const equipmentCollection = collection(
+              db,
+              "customerInfo",
+              customer.customerID,
+              "equipmentInfo"
+            ); // Use customer.customerID here
+            const equipmentQuerySnapshot = await getDocs(equipmentCollection);
 
-        // Fetch sites for each customer
-        const siteCollection = collection(db, "customerSiteInfo");
-        const siteQuery = query(
-          siteCollection,
-          where("customerID", "==", customerData.customerID)
-        );
-        const siteQuerySnapshot = await getDocs(siteQuery);
+            const equipment: CustomerEquipment[] =
+              equipmentQuerySnapshot.docs.map(
+                (equipDoc) => equipDoc.data() as CustomerEquipment
+              );
 
-        const sites: CustomerSite[] = siteQuerySnapshot.docs.map(
-          (equipDoc) => equipDoc.data() as CustomerSite
-        );
+            customer.equipment = equipment; // Assign the fetched equipment to the customer
+          });
 
-        return {
-          ...customerData,
-          equipment,
-          sites, // Add sites to the customer object
-        };
-      })
+          const sitePromises = fetchedCustomers.map(async (customer) => {
+            const siteCollection = collection(
+              db,
+              "customerInfo",
+              customer.customerID,
+              "siteInfo"
+            ); // Use customer.customerID here
+            const siteQuerySnapshot = await getDocs(siteCollection);
+
+            const sites: CustomerSite[] = siteQuerySnapshot.docs.map(
+              (siteDoc) => siteDoc.data() as CustomerSite
+            );
+
+            customer.sites = sites; // Assign the fetched sites to the customer
+          });
+
+          // Wait for all equipment and site fetches to complete
+          await Promise.all([...equipmentPromises, ...sitePromises]);
+
+          // Finally, update the state with all fetched customers
+          setCustomers(fetchedCustomers);
+        } catch (error) {
+          console.error("Error processing customer data:", error);
+        }
+      }
     );
-    setCustomers(fetchedCustomers);
+
+    // Return the unsubscribe function to clean up the listener when the component unmounts
+    return unsubscribe;
   };
 
   useEffect(() => {
-    fetchCustomers();
+    const unsubscribe = fetchCustomers();
+    return () => unsubscribe(); // Cleanup listener on unmount
   }, []);
 
   const router = useRouter();
@@ -91,6 +146,10 @@ const CustomersPage: React.FC = () => {
     indexOfFirstEntry,
     indexOfLastEntry
   );
+
+  const handleRowClick = (customerID: string) => {
+    router.push(`./customers/${customerID}/view/`);
+  };
 
   const handlePageChange = (pageNumber: number) => {
     setCurrentPage(pageNumber);
@@ -133,7 +192,7 @@ const CustomersPage: React.FC = () => {
       {/* Table with sticky header and fixed height */}
       <div className="relative overflow-x-auto bg-white border border-gray-200 rounded-lg shadow-md h-[500px]">
         <table className="w-full text-sm text-left text-gray-600 bg-white">
-          <thead className="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0">
+          <thead className="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0 text-center">
             <tr>
               <th scope="col" className="px-6 py-3">
                 Customer ID
@@ -158,12 +217,13 @@ const CustomersPage: React.FC = () => {
               </th>
             </tr>
           </thead>
-          <tbody className="overflow-y-auto">
+          <tbody className="overflow-y-auto text-center">
             {currentEntries.length > 0 ? (
               currentEntries.map((customer) => (
                 <tr
                   key={customer.customerID}
-                  className="border-b border-gray-200"
+                  onClick={() => handleRowClick(customer.customerID)}
+                  className="border-b border-gray-200 cursor-pointer hover:bg-gray-100"
                 >
                   <td className="px-6 py-4 font-medium text-gray-900">
                     {customer.customerID}
@@ -178,41 +238,53 @@ const CustomersPage: React.FC = () => {
                     {customer.contactPhone}
                   </td>
                   <td className="px-6 py-4 text-gray-600">
-                    {customer.sites && customer.sites.length > 0 ? (
-                      customer.sites.map((sites, index) => (
-                        <div key={index}>
-                          <p>
-                            - {sites.siteID} ({sites.siteName})
-                          </p>
-                        </div>
-                      ))
+                    {customer.sites &&
+                    Array.isArray(customer.sites) &&
+                    customer.sites.length > 0 ? (
+                      <button
+                        onClick={() => {
+                          Swal.fire({
+                            title: "View Sites",
+                            text: `Do you want to view the sites?`,
+                            icon: "question",
+                            showCancelButton: true,
+                            confirmButtonText: "Yes, show me!",
+                            cancelButtonText: "No, thanks",
+                          }).then((result) => {
+                            if (result.isConfirmed) {
+                              console.log(
+                                "Viewing sites for customer:",
+                                customer.customerID
+                              );
+                            }
+                          });
+                        }}
+                        className="text-gray-500 underline hover:text-gray-700"
+                      >
+                        {customer.sites.length} sites
+                      </button>
                     ) : (
                       <p>No sites assigned</p>
                     )}
                   </td>
                   <td className="px-6 py-4 text-gray-600">
                     {customer.equipment && customer.equipment.length > 0 ? (
-                      customer.equipment.map((equip) => (
-                        <div key={equip.equipmentID}>
-                          <p>
-                            - {equip.equipmentID} ({equip.equipmentName})
-                          </p>
-                        </div>
-                      ))
+                      <p>{customer.equipment.length} </p>
                     ) : (
                       <p>No equipment assigned</p>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-center">
+                  <td className="px-6 py-4 ">
                     {/* Three-dot menu button */}
                     <button
-                      onClick={() =>
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent row click when clicking the button
                         setDropdownOpen((prev) => ({
                           ...prev,
                           // Use customerID here for menu toggle
                           [customer.customerID]: !prev[customer.customerID],
-                        }))
-                      }
+                        }));
+                      }}
                       className="text-gray-600 hover:text-gray-800 focus:outline-none"
                     >
                       ⋮
@@ -221,7 +293,17 @@ const CustomersPage: React.FC = () => {
                     {dropdownOpen[customer.customerID] && (
                       <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded shadow-lg z-2">
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent row click when clicking Add Site
+                            handleAddSiteClick(customer.customerID);
+                          }}
+                          className="block px-4 py-2 text-black hover:bg-gray-100 w-full text-left"
+                        >
+                          Add Site
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent row click when clicking Delete
                             handleDelete(customer.customerID);
                             setDropdownOpen((prev) => ({
                               ...prev,
@@ -285,6 +367,12 @@ const CustomersPage: React.FC = () => {
           </select>
         </div>
       </div>
+
+      <AddCustomerSiteModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        customerID={selectedCustomerID!} // Ensure customerID is not null
+      />
     </div>
   );
 };

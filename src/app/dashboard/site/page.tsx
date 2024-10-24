@@ -3,39 +3,55 @@
 import React, { useState, useEffect } from "react";
 import { Site } from "@/app/types/Site";
 import { db } from "@/app/firebase/config";
-import { collection, getDocs } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  deleteDoc,
+  onSnapshot,
+  getDocs,
+  query,
+  where,
+  // setDoc,
+} from "firebase/firestore";
 import Button from "@/app/components/common/Button";
+import EditSiteModal from "@/app/components/Site/EditSiteModal";
+import AddSiteModal from "@/app/components/Site/AddSiteModal"; // Import your AddSiteModal component
+import Swal from "sweetalert2";
 
 const SitePage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
-
   const [sites, setSites] = useState<Site[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [entriesPerPage, setEntriesPerPage] = useState(10);
   const [dropdownOpen, setDropdownOpen] = useState<{ [key: string]: boolean }>(
     {}
   );
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false); // State for AddSiteModal
+  const [selectedSite, setSelectedSite] = useState<Site | null>(null);
 
-  const fetchSites = async () => {
+  const fetchSites = () => {
     const siteCollectionRef = collection(db, "site");
-    const siteSnapshot = await getDocs(siteCollectionRef);
-    const siteList: Site[] = siteSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Site[];
-    setSites(siteList);
+
+    const unsubscribe = onSnapshot(siteCollectionRef, (snapshot) => {
+      const siteList: Site[] = snapshot.docs.map((doc) => ({
+        siteID: doc.id,
+        ...doc.data(),
+      })) as Site[];
+      setSites(siteList);
+    });
+
+    return unsubscribe;
   };
 
   useEffect(() => {
-    fetchSites();
+    const unsubscribe = fetchSites();
+    return () => unsubscribe();
   }, []);
 
-  const filteredSites = sites.filter((site) => {
-    const matchesSearch = site.siteName
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase());
-    return matchesSearch;
-  });
+  const filteredSites = sites.filter((site) =>
+    site.siteName.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const totalPages = Math.ceil(filteredSites.length / entriesPerPage);
   const indexOfLastEntry = currentPage * entriesPerPage;
@@ -57,7 +73,7 @@ const SitePage: React.FC = () => {
   };
 
   const handleAdd = () => {
-    // Navigation for adding a site
+    setIsAddModalOpen(true); // Open the AddSiteModal
   };
 
   const toggleDropdown = (siteId: string) => {
@@ -66,6 +82,96 @@ const SitePage: React.FC = () => {
       [siteId]: !prev[siteId],
     }));
   };
+
+  const handleEdit = (site: Site) => {
+    setSelectedSite(site);
+    setIsEditModalOpen(true);
+  };
+
+  const handleDelete = async (siteId: string) => {
+    const confirmDelete = await Swal.fire({
+      title: "Are you sure?",
+      text: "This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, delete it!",
+      cancelButtonText: "No, cancel!",
+    });
+
+    if (confirmDelete.isConfirmed) {
+      try {
+        const siteRef = doc(db, "site", siteId);
+        await deleteDoc(siteRef);
+
+        const customerCollection = collection(db, "customerInfo");
+        const customerSnapshot = await getDocs(customerCollection);
+
+        const deletePromises: Promise<void>[] = [];
+
+        for (const customerDoc of customerSnapshot.docs) {
+          const customerId = customerDoc.id;
+          const siteInfoCollection = collection(
+            db,
+            `customerInfo/${customerId}/siteInfo`
+          );
+          const siteInfoQuery = query(
+            siteInfoCollection,
+            where("siteID", "==", siteId)
+          );
+          const siteInfoSnapshot = await getDocs(siteInfoQuery);
+
+          siteInfoSnapshot.docs.forEach((siteInfoDoc) => {
+            const siteInfoRef = doc(siteInfoCollection, siteInfoDoc.id);
+            deletePromises.push(deleteDoc(siteInfoRef));
+          });
+        }
+
+        await Promise.all(deletePromises);
+
+        setSites((prev) => prev.filter((site) => site.siteID !== siteId));
+
+        Swal.fire(
+          "Deleted!",
+          "Your site and related site info have been deleted.",
+          "success"
+        );
+      } catch (error) {
+        console.error("Error deleting site: ", error);
+        Swal.fire("Error!", "There was an error deleting your site.", "error");
+      }
+    }
+  };
+
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+    setSelectedSite(null);
+  };
+
+  const closeAddModal = () => {
+    setIsAddModalOpen(false);
+  };
+
+  const handleUpdate = (updatedSite: Site) => {
+    setSites((prev) =>
+      prev.map((site) =>
+        site.siteID === updatedSite.siteID ? updatedSite : site
+      )
+    );
+    closeEditModal();
+  };
+
+  // const handleAddSite = async (newSite: Site) => {
+  //   try {
+  //     const siteRef = doc(collection(db, "site"));
+  //     await setDoc(siteRef, newSite); // Add the new site to Firestore
+  //   //  setSites((prev) => [...prev, { siteID: siteRef.id, ...newSite }]); // Update local state
+  //     Swal.fire("Success!", "New site added successfully!", "success");
+  //     closeAddModal(); // Close the modal after adding
+  //   } catch (error) {
+  //     console.error("Error adding site: ", error);
+  //     Swal.fire("Error!", "There was an error adding the site.", "error");
+  //   }
+  // };
 
   return (
     <div className="p-8 lg:p-12 bg-white h-screen overflow-hidden">
@@ -141,7 +247,16 @@ const SitePage: React.FC = () => {
                     </button>
                     {dropdownOpen[site.siteID] && (
                       <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded shadow-lg z-2">
-                        <button className="block px-4 py-2 text-red-600 hover:bg-gray-100 w-full text-left">
+                        <button
+                          onClick={() => handleEdit(site)}
+                          className="block px-4 py-2 text-blue-600 hover:bg-gray-100 w-full text-left"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(site.siteID)}
+                          className="block px-4 py-2 text-red-600 hover:bg-gray-100 w-full text-left"
+                        >
                           Delete
                         </button>
                       </div>
@@ -185,6 +300,22 @@ const SitePage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {isEditModalOpen && selectedSite && (
+        <EditSiteModal
+          site={selectedSite}
+          onClose={closeEditModal}
+          onUpdate={handleUpdate}
+        />
+      )}
+
+      {isAddModalOpen && (
+        <AddSiteModal
+          isOpen
+          onClose={closeAddModal}
+          onAddSite={handleAdd} // Pass the function to handle adding a site
+        />
+      )}
     </div>
   );
 };

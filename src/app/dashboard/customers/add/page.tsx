@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import InputField from "@/app/components/common/InputField";
 import DisabledField from "@/app/components/common/DisabledField";
-import EquipmentTable from "@/app/components/common/EquipmentTable";
+//import EquipmentTable from "@/app/components/common/EquipmentTable";
 import { db } from "@/app/firebase/config";
 import {
   doc,
@@ -15,7 +15,7 @@ import {
 } from "firebase/firestore";
 import { Equipment } from "@/app/types/Equipment";
 import Swal from "sweetalert2";
-import SiteTable from "@/app/components/common/SiteTable";
+//import SiteTable from "@/app/components/common/SiteTable";
 import { Site } from "@/app/types/Site";
 
 const AddCustomerPage: React.FC = () => {
@@ -33,16 +33,16 @@ const AddCustomerPage: React.FC = () => {
   const [contactPhone, setContactPhone] = useState("");
   const [contactEmail, setContactEmail] = useState("");
 
-  const [selectedEquipment, setSelectedEquipment] = useState<Equipment[]>([]);
-  const [selectedSite, setSelectedSite] = useState<Site[]>([]);
+  const [selectedEquipment] = useState<Equipment[]>([]); //setSelectedEquipment
+  const [selectedSite] = useState<Site[]>([]); //setSelectedSite
 
-  const handleSelectEquipment = (newSelectedEquipment: Equipment[]) => {
-    setSelectedEquipment(newSelectedEquipment);
-  };
+  // const handleSelectEquipment = (newSelectedEquipment: Equipment[]) => {
+  //   setSelectedEquipment(newSelectedEquipment);
+  // };
 
-  const handleSelectSite = (newSelectedSites: Site[]) => {
-    setSelectedSite(newSelectedSites);
-  };
+  // const handleSelectSite = (newSelectedSites: Site[]) => {
+  //   setSelectedSite(newSelectedSites);
+  // };
 
   // Generate a new customerEquipmentID
   const generateEquipmentID = (index: number) => {
@@ -76,11 +76,8 @@ const AddCustomerPage: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: { preventDefault: () => void }) => {
     e.preventDefault();
-
-    console.log("Selected Equipment Items:", selectedEquipment);
-    console.log("Selected Site Items:", selectedSite);
 
     const result = await Swal.fire({
       title: "Confirm Submission",
@@ -99,88 +96,70 @@ const AddCustomerPage: React.FC = () => {
       const customerRef = doc(db, "customerInfo", customerID);
       const customerSnapshot = await getDoc(customerRef);
 
+      const customerData = {
+        customerID,
+        customerName,
+        TIN,
+        BRN,
+        contact: [
+          {
+            contactFirstName,
+            contactLastName,
+            contactMiddleName: "", // Add this if needed
+            contactPhone,
+            contactEmail,
+          },
+        ],
+      };
+
       if (!customerSnapshot.exists()) {
-        await setDoc(customerRef, {
-          customerID,
-          customerName,
-          TIN,
-          BRN,
-          industry,
-          status,
-          contactFirstName,
-          contactLastName,
-          contactPhone,
-          contactEmail,
-        });
+        // Create a new customer
+        await setDoc(customerRef, customerData);
         console.log("New customer added:", customerID);
       } else {
-        await updateDoc(customerRef, {
-          customerName,
-          TIN,
-          BRN,
-          industry,
-          status,
-          contactFirstName,
-          contactLastName,
-          contactPhone,
-          contactEmail,
-        });
+        // Update existing customer
+        await updateDoc(customerRef, customerData);
         console.log("Customer updated:", customerID);
       }
 
-      // Save selected equipment if any
+      // Save equipment information if any
       if (selectedEquipment.length > 0) {
-        const existingEquipmentSnapshot = await getDocs(
-          collection(db, "customerEquipmentInfo")
-        );
-        const existingEquipmentIDs = existingEquipmentSnapshot.docs.map(
-          (doc) => doc.id
-        );
-
         const equipmentPromises = selectedEquipment.map(
           async (equipment, index) => {
-            const customerEquipmentID = generateEquipmentID(
-              existingEquipmentIDs.length + index
+            const equipmentRef = doc(
+              collection(customerRef, "equipmentInfo"),
+              generateEquipmentID(index)
             );
 
-            return setDoc(
-              doc(db, "customerEquipmentInfo", customerEquipmentID),
-              {
-                customerID,
-                customerName,
-                customerEquipmentID,
-                equipmentID: equipment.equipmentID,
-                equipmentName: equipment.equipmentName,
-                typeOfScope: equipment.typeOfScope,
-                description: equipment.description,
-                tagID: equipment.tagID,
-                model: equipment.model,
-                serialNumber: equipment.serialNumber,
-                type: equipment.rangeType,
-                range: `${equipment.rangeMinTemp} to ${equipment.rangeMaxTemp}`,
-                rangePercent: `${equipment.rangeMinPercent} to ${equipment.rangeMaxPercent}`,
-                traceability: equipment.traceability,
-              }
-            );
+            return setDoc(equipmentRef, {
+              equipmentID: equipment.equipmentID,
+              equipmentName: equipment.equipmentName,
+              typeOfScope: equipment.typeOfScope,
+              description: equipment.description,
+              tagID: equipment.tagID,
+              model: equipment.model,
+              serialNumber: equipment.serialNumber,
+              type: equipment.rangeType,
+              range: `${equipment.rangeMinTemp} to ${equipment.rangeMaxTemp}`,
+              rangePercent: `${equipment.rangeMinPercent} to ${equipment.rangeMaxPercent}`,
+              traceability: equipment.traceability,
+            });
           }
         );
 
         await Promise.all(equipmentPromises);
       }
 
-      // Save selected sites if any
+      // Save site information if any
       if (selectedSite.length > 0) {
-        const existingSiteSnapshot = await getDocs(
-          collection(db, "customerSiteInfo")
-        );
-        const existingSiteIDs = existingSiteSnapshot.docs.map((doc) => doc.id);
-
         const sitePromises = selectedSite.map(async (site, index) => {
-          const customerSiteID = generateSiteID(existingSiteIDs.length + index);
+          const siteRef = doc(
+            collection(customerRef, "siteInfo"),
+            generateSiteID(index)
+          );
 
-          return setDoc(doc(db, "customerSiteInfo", customerSiteID), {
-            customerID,
-            siteID: customerSiteID,
+          return setDoc(siteRef, {
+            siteID: siteRef.id,
             siteName: site.siteName,
             siteStreet1: site.street1,
             siteStreet2: site.street2,
@@ -189,7 +168,6 @@ const AddCustomerPage: React.FC = () => {
             siteCity: site.city,
             sitePostCode: site.postCode,
             siteCountry: site.country,
-            // Include any additional fields you need to save
           });
         });
 
@@ -228,7 +206,8 @@ const AddCustomerPage: React.FC = () => {
       </h1>
 
       <div className="flex space-x-4 mb-8 border-b">
-        {["customerInfo", "siteInfo", "equipmentInfo"].map((tab) => (
+        {/* "siteInfo", "equipmentInfo" */}
+        {["customerInfo"].map((tab) => (
           <span
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -239,8 +218,8 @@ const AddCustomerPage: React.FC = () => {
             }`}
           >
             {tab === "customerInfo" && "Customer Info"}
-            {tab === "siteInfo" && "Site Info"}
-            {tab === "equipmentInfo" && "Equipment Info"}
+            {/* {tab === "siteInfo" && "Site Info"}
+            {tab === "equipmentInfo" && "Equipment Info"} */}
           </span>
         ))}
       </div>
@@ -336,7 +315,7 @@ const AddCustomerPage: React.FC = () => {
             </div>
           </>
         )}
-
+        {/* 
         {activeTab === "siteInfo" && (
           <>
             <h2 className="text-2xl font-bold mb-4 xl:mb-6">Site Info</h2>
@@ -355,7 +334,7 @@ const AddCustomerPage: React.FC = () => {
               selectedEquipment={selectedEquipment}
             />
           </>
-        )}
+        )} */}
 
         <button
           type="submit"

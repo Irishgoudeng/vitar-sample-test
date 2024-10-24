@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Equipment } from "@/app/types/Equipment";
 import { db } from "@/app/firebase/config"; // Ensure this is the correct path
-import { collection, getDocs } from "firebase/firestore"; // Import Firestore methods
+import { collection, onSnapshot, doc, deleteDoc } from "firebase/firestore"; // Import Firestore methods
 import Button from "@/app/components/common/Button"; // Import your Button component
 
 const EquipmentPage: React.FC = () => {
@@ -21,30 +21,45 @@ const EquipmentPage: React.FC = () => {
 
   // Fetch equipment data from Firestore
   useEffect(() => {
-    const fetchEquipments = async () => {
-      const equipmentCollectionRef = collection(db, "equipment");
-      const equipmentSnapshot = await getDocs(equipmentCollectionRef);
-      const equipmentList: Equipment[] = equipmentSnapshot.docs.map((doc) => ({
+    const equipmentCollectionRef = collection(db, "equipment");
+
+    // Set up a real-time listener
+    const unsubscribe = onSnapshot(equipmentCollectionRef, (snapshot) => {
+      const equipmentList: Equipment[] = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       })) as Equipment[];
       setEquipments(equipmentList);
-    };
+    });
 
-    fetchEquipments();
+    // Cleanup the listener on unmount
+    return () => unsubscribe();
   }, []);
 
-  const handleDelete = (equipmentId: string) => {
+  const handleDelete = async (equipmentId: string) => {
     const confirmDelete = confirm(
       "Are you sure you want to delete this equipment?"
     );
+
     if (confirmDelete) {
-      setEquipments((prev) =>
-        prev.filter((equipment) => equipment.equipmentID !== equipmentId)
-      );
-      console.log(`Equipment with ID ${equipmentId} deleted`);
-      // Optionally, trigger a refresh or navigate away
-      router.push(`/dashboard/equipment`);
+      try {
+        // Create a reference to the equipment document
+        const equipmentRef = doc(db, "equipment", equipmentId);
+
+        // Delete the document from Firestore
+        await deleteDoc(equipmentRef);
+
+        // Update local state
+        setEquipments((prev) =>
+          prev.filter((equipment) => equipment.equipmentID !== equipmentId)
+        );
+
+        console.log(`Equipment with ID ${equipmentId} deleted`);
+        // Optionally, trigger a refresh or navigate away
+        router.push(`/dashboard/equipment`);
+      } catch (error) {
+        console.error("Error deleting equipment: ", error);
+      }
     }
   };
 
