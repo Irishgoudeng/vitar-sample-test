@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useState, useEffect } from "react";
 import { Site } from "@/app/types/Site";
 import { db } from "@/app/firebase/config";
@@ -45,6 +44,10 @@ const SitePage: React.FC = () => {
   };
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      console.log(window.innerWidth);
+    }
+
     const unsubscribe = fetchSites();
     return () => unsubscribe();
   }, []);
